@@ -1,2 +1,0 @@
-# pxe
-PXE-Server Advanced
