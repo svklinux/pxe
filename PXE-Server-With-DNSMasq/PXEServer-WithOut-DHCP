@@ -1,0 +1,76 @@
+PXEServer-WithOut-DHCP-(23-Nov-2016)
+======================================
+
+
+# yum install dnsmasq
+
+# vi /etc/dnsmasq.conf
+port=0
+log-dhcp
+dhcp-range=192.168.1.0,proxy
+dhcp-boot=pxelinux.0
+pxe-service=x86PC,"Network Boot",pxelinux
+enable-tftp
+tftp-root=/var/lib/tftpboot
+interface=eth0
+bind-interfaces
+#
+
+# vi /etc/default/dnsmasq
+DNSMASQ_EXCEPT=lo
+#
+
+# service dnsmasq restart
+
+# chkconfig --list dnsmasq
+
+-------------------------------
+
+# ls /var/lib/tftpboot/
+efi     memdisk     pxelinux.cfg   vesamenu.c32
+images  pxelinux.0  svk-pxebg.png
+#
+
+
+# cat /var/lib/tftpboot/pxelinux.cfg/default 
+DEFAULT vesamenu.c32
+MENU BACKGROUND svk-pxebg.png
+MENU COLOR BORDER 0 #ffffffff #00000000 std
+MENU COLOR TITLE 0 #ffffffff #00000000 std
+MENU COLOR SEL 0 #ffffffff #ff000000 std
+MENU TITLE PXE-Server-SVK-CentOS6
+PROMPT 0
+TIMEOUT 600
+ONTIMEOUT local
+MENU MASTER PASSWD $1$sXiKzkus$LnKYe3OlM5I2xxKIUgdNC1
+#######GParted-0.22##########
+LABEL GParted Live
+MENU PASSWD
+kernel images/gparted/vmlinuz
+append initrd=images/gparted/initrd.img boot=live union=overlay username=user config components quiet noswap noeject vga=788 fetch=tftp://192.168.1.8/images/gparted/filesystem.squashfs
+#######CloneZilla-2.4##########
+LABEL Clonezilla-2.4
+MENU PASSWD
+kernel images/clonezilla/vmlinuz
+append initrd=images/clonezilla/initrd.img boot=live union=overlay username=user config components quiet noswap edd=on nomodeset nodmraid noeject locales= keyboard-layouts= ocs_live_run="ocs-live-general" ocs_live_extra_param="" ocs_live_batch=no vga=788 ip=  nosplash i915.blacklist=yes radeonhd.blacklist=yes nouveau.blacklist=yes vmwgfx.enable_fbdev=1 fetch=tftp://192.168.1.8/images/clonezilla/filesystem.squashfs
+#######UBUNTU14-04#########
+LABEL Ubuntu 14.04-x64
+MENU PASSWD
+KERNEL images/ubuntu-14.04/casper/vmlinuz.efi
+APPEND vga=normal boot=casper netboot=nfs nfsroot=192.168.1.8:/vsftpd/backup/ubuntu-14.04/ initrd=images/ubuntu-14.04/casper/initrd.lz ramdisk_size=32768
+
+#######UBUNTU16-04#########
+LABEL Ubuntu 16.04-x64
+MENU PASSWD
+KERNEL images/ubuntu-16.04/casper/vmlinuz.efi
+APPEND vga=normal boot=casper netboot=nfs nfsroot=192.168.1.8:/vsftpd/backup/ubuntu-16.04/ initrd=images/ubuntu-16.04/casper/initrd.lz ramdisk_size=32768
+#######Win7-PE####################
+LABEL Win-PE
+MENU PASSWD
+KERNEL memdisk
+APPEND iso initrd=images/win7pe/Win7PE-USB3.iso raw
+#
+
+
+ 
+

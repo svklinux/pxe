@@ -1,0 +1,210 @@
+Cent-7-PXE-Server-ThroughFirewall-Jun-2016
+======================================
+
+# yum install tftp-server tftp xinetd syslinux dhcp wget 
+
+		DHCP-Server
+--------------------------------------------------------
+
+# yum install dhcp
+
+# vi /etc/dhcp/dhcpd.conf 
+option routers 50.0.0.22;
+option domain-name "testsvk.org";
+option domain-name-servers 192.168.1.1;
+option subnet-mask 255.255.255.0;
+subnet 50.0.0.0 netmask 255.255.255.0 {
+range 50.0.0.150 50.0.0.200;
+allow unknown-clients;
+allow booting ;
+allow bootp ;
+next-server 50.0.0.22;
+filename "pxelinux.0";
+}
+# 
+
+# systemctl enable dhcpd
+
+If more than one network interface is attached to the system, 
+but the DHCP server should only listen for DHCP requests on one of the interfaces, 
+configure the DHCP server to listen only on that device.
+
+Edit the line under section [Service]:
+
+# cp /usr/lib/systemd/system/dhcpd.service /etc/systemd/system/
+# vi /etc/systemd/system/dhcpd.service
+...
+[Service]:
+###ExecStart=/usr/sbin/dhcpd -f -cf /etc/dhcp/dhcpd.conf -user dhcpd -group dhcpd --no-pid your_interface_name(s)
+ExecStart=/usr/sbin/dhcpd -f -cf /etc/dhcp/dhcpd.conf -user dhcpd -group dhcpd --no-pid enp0s8
+#
+
+# systemctl --system daemon-reload
+# systemctl restart dhcpd
+
+			NFS-Server
+-----------------------------------------------------------
+
+# yum install nfs-utils
+
+# systemctl restart rpcbind
+# systemctl restart nfs-server
+
+# systemctl enable rpcbind
+# systemctl enable nfs-server
+
+
+			TFTP-Server
+-----------------------------------------------------------
+
+
+# vi /etc/xinetd.d/tftp
+service tftp
+{
+	socket_type		= dgram
+	protocol		= udp
+	wait			= yes
+	user			= root
+	server			= /usr/sbin/in.tftpd
+	server_args		= -s /var/lib/tftpboot
+	disable			= no
+	per_source		= 11
+	cps			= 100 2
+	flags			= IPv4
+}
+#
+
+# mkdir -p /var/lib/tftpboot/pxelinux.cfg
+# mkdir /var/lib/tftpboot/images
+# chmod -R 777 /var/lib/tftpboot/
+
+# cp /usr/share/syslinux/pxelinux.0 /var/lib/tftpboot/
+# cp /usr/share/syslinux/vesamenu.c32 /var/lib/tftpboot/
+
+# wget https://www.dropbox.com/s/2yhhqk9e09382tf/SVK-Wall.png -O /var/lib/tftpboot/centos7pxebg.png
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+DEFAULT vesamenu.c32
+MENU BACKGROUND centos7pxebg.png
+MENU COLOR BORDER 0 #ffffffff #00000000 std
+MENU COLOR TITLE 0 #ffffffff #00000000 std
+MENU COLOR SEL 0 #ffffffff #ff000000 std
+MENU TITLE PXE-Server-Multi-OS
+PROMPT 0
+TIMEOUT 600
+#
+
+			ADD-OS-Images-To-PXE
+-----------------------------------------------------------
+
+1.Win7-PE
+-----------------------------
+
+# mkdir /var/lib/tftpboot/images/win7
+# cp /usr/share/syslinux/memdisk /var/lib/tftpboot
+
+# scp -r ubuntu@200.0.0.10:/ISO/Win7/Win7-PE.iso /var/lib/tftpboot/images/win7
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+...
+#######Win7-PE####################
+LABEL Win7-PE
+KERNEL memdisk
+APPEND iso initrd=images/win7/Win7-PE.iso raw
+#
+
+# firewall-cmd --list-all
+# firewall-cmd --list-services
+# firewall-cmd --list-ports
+# firewall-cmd --permanent --list-all
+# firewall-cmd --permanent --add-service=dhcp     ## Port 67
+# firewall-cmd --permanent --add-port=69/udp     ## Port for TFTP
+# firewall-cmd --permanent --add-port=69/tcp    ## Port for TFTP
+					For-NFS
+# firewall-cmd --permanent --add-service mountd
+# firewall-cmd --permanent --add-service rpc-bind
+# firewall-cmd --permanent --add-service nfs
+# firewall-cmd --reload
+
+# systemctl restart xinetd
+# systemctl restart dhcpd
+
+# systemctl enable xinetd
+# systemctl enable dhcpd
+
+2.Xubuntu 14.04
+-----------------------------
+
+# mkdir /var/lib/tftpboot/images/xubuntu
+# mkdir /FTP/xubuntu
+
+# mount /dev/cdrom /media
+# cp -R /media/* /FTP/xubuntu
+# cp -R /media/.disk /FTP/xubuntu
+
+# cp -R /FTP/xubuntu/casper/initrd.lz /var/lib/tftpboot/images/xubuntu
+# cp -R /FTP/xubuntu/casper/vmlinuz.efi /var/lib/tftpboot/images/xubuntu
+
+# vi /etc/exports
+/FTP/xubuntu 50.0.0.0/24(rw)
+#
+
+# exportsfs -a
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+....
+#######xubuntu-14.04.02####################
+LABEL xUbuntu 14.04.02-x64 Desktop
+KERNEL images/xubuntu/vmlinuz.efi
+APPEND vga=normal boot=casper netboot=nfs nfsroot=50.0.0.22:/FTP/xubuntu/ initrd=images/xubuntu/initrd.lz ramdisk_size=32768
+#
+
+
+
+				Cent-7-Router
+-----------------------------------------------------------
+
+External Interface(Public)	===	enp0s3
+Internal Interface(private)	===	enp0s8
+
+# vi /etc/sysctl.conf
+...
+net.ipv4.ip_forward = 1
+#
+# sysctl -p
+
+# firewall-cmd --permanent --direct --add-rule ipv4 nat POSTROUTING 0 -o enp0s3 -j MASQUERADE
+# firewall-cmd --permanent --direct --add-rule ipv4 filter FORWARD 0 -i enp0s8 -o enp0s3 -j ACCEPT
+# firewall-cmd --permanent --direct --add-rule ipv4 filter FORWARD 0 -i enp0s3 -o enp0s8 -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+List Rules
+
+# firewall-cmd --permanent --direct --get-all-rules
+
+# firewall-cmd --permanent --direct --get-rules ipv4 nat POSTROUTING 
+# firewall-cmd --permanent --direct --get-rules ipv4 filter FORWARD
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

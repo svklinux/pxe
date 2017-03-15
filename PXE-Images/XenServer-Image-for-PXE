@@ -1,0 +1,45 @@
+
+XenServer-6.5
+==================
+
+# mount /dev/cdrom /media
+
+# mkdir /var/
+# cp /media/boot/pxelinux/mboot.c32 /var/lib/tftpboot/xenserver
+# cp /media/boot/vmlinuz /var/lib/tftpboot/xenserver
+# cp /media/boot/xen.gz /var/lib/tftpboot/xenserver
+# cp /media/install.img /var/lib/tftpboot/xenserver
+
+Create Answer File and HTTP Repository
+
+# mkdir /var/www/html/xenserver
+# cp -r /media/packages*  /var/www/html/xenserver
+# cp /media/XS-REPOSITORY-LIST /var/www/html/xenserver
+
+# vi /var/www/html/xenserver/answerfile
+<?xml version="1.0"?>
+<installation srtype="ext">
+<primary-disk>sda</primary-disk>
+<keymap>us</keymap>
+<root-password>root123</root-password>                      
+<source type="url">http://100.0.0.11/xenserver/</source>
+<ntp-server>100.0.0.11</ntp-server>        
+<admin-interface name="eth0" proto="dhcp" />
+<timezone>Asia/Kolkata</timezone>
+</installation>
+#
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+......
+####################Xen-Server-6.5####################
+LABEL XenServer-6.5
+KERNEL images/xenserver/mboot.c32
+append images/xenserver/xen.gz dom0_max_vcpus=2 dom0_mem=752M com1=115200,8n1 console=com1,vga --- images/xenserver/vmlinuz xencons=hvc console=hvc0 console=tty0 answerfile=http://100.0.0.11/xenserver/answerfile install --- images/xenserver/install.img
+#
+
+#systemctl enable httpd 
+#systemctl restart httpd 
+#systemctl restart xinetd
+
+
+

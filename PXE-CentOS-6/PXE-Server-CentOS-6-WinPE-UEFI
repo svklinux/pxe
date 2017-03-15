@@ -1,0 +1,542 @@
+PXE-Server-Installation-CentOS-6-UEFI&MBR(09-SeP-2016)
+============================================================
+
+# cat /etc/hostname 
+PXE-CenT-6
+#
+
+# service iptables stop
+# chkconfig iptables off
+# cat /etc/sysconfig/selinux
+...
+SELINUX=disabled
+...
+#
+
+# vi /etc/sysconfig/network-scripts/ifcfg-eth0
+TYPE=Ethernet
+BOOTPROTO=none
+DEFROUTE=yes
+IPV4_FAILURE_FATAL=no
+IPV6INIT=no
+NAME=eth0
+ONBOOT=yes
+HWADDR=xxxxxxxxxxxxx
+IPADDR=192.168.1.8
+PREFIX=24
+GATEWAY=192.168.1.8
+DNS1=192.168.1.8
+DOMAIN=8.8.8.8
+#
+
+# yum install openssh-server
+
+# service sshd status 
+# service start sshd
+# chkconfig sshd on
+# chkconfig sshd --list
+
+# reboot
+
+==========================
+==========================
+DHCP-Server
+==========================
+==========================
+
+# yum install dhcp
+
+# vi /etc/dhcp/dhcpd.conf 
+default-lease-time 600;
+max-lease-time 7200;
+ddns-update-style interim;
+not authoritative;
+subnet 192.168.1.0 netmask 255.255.255.0
+{
+authoritative;
+range 192.168.1.150 192.168.1.190;
+option routers 192.168.1.8;
+option domain-name "ligs.in";
+option domain-name-servers 8.8.4.4, 8.8.8.8;
+allow unknown-clients;
+allow booting ;
+allow bootp ;
+next-server 192.168.1.8;
+if substring (option vendor-class-identifier, 15, 5) = "00007" {
+   filename "efi/syslinux.efi";
+}
+else  {
+   filename "/pxelinux.0";
+}
+}
+# 
+
+# systemctl enable dhcpd
+
+==========================
+==========================
+FTP-Server
+==========================
+==========================
+
+# yum install vsftpd
+
+# vi /etc/vsftpd/vsftpd.conf
+...
+anonymous_enable=YES
+anon_root=/FTP
+...
+#
+
+# mkdir /FTP
+
+
+==========================
+==========================
+NFS-Server
+==========================
+==========================
+
+# yum install nfs*
+
+==========================
+==========================
+TFTP-Server
+==========================
+==========================
+
+# yum install tftp-server xinetd syslinux wget
+
+# vi /etc/xinetd.d/tftp
+service tftp
+{
+	socket_type		= dgram
+	protocol		= udp
+	wait			= yes
+	user			= root
+	server			= /usr/sbin/in.tftpd
+	server_args		= -s /var/lib/tftpboot
+	disable			= no
+	per_source		= 11
+	cps			= 100 2
+	flags			= IPv4
+}
+#
+
+For-MBR
+====================================
+
+# mkdir -p /var/lib/tftpboot/pxelinux.cfg
+# mkdir /var/lib/tftpboot/images
+# chmod -R 777 /var/lib/tftpboot/
+
+# cp /usr/share/syslinux/pxelinux.0 /var/lib/tftpboot/
+# cp /usr/share/syslinux/vesamenu.c32 /var/lib/tftpboot/
+# cp /usr/share/syslinux/memdisk /var/lib/tftpboot/
+
+# wget https://www.dropbox.com/s/2yhhqk9e09382tf/SVK-Wall.png -O /var/lib/tftpboot/svk-pxebg.png
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+DEFAULT vesamenu.c32
+MENU BACKGROUND svk-pxebg.png
+MENU COLOR BORDER 0 #ffffffff #00000000 std
+MENU COLOR TITLE 0 #ffffffff #00000000 std
+MENU COLOR SEL 0 #ffffffff #ff000000 std
+MENU TITLE MBR-PXE-Server-SVK-CentOS6
+PROMPT 0
+TIMEOUT 600
+#
+
+For-UEFI
+====================================
+
+# mkdir -p /var/lib/tftpboot/efi/pxelinux.cfg
+# mkdir /var/lib/tftpboot/efi/images
+# chmod -R 777 /var/lib/tftpboot/efi
+
+# wget https://www.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz
+# tar -xzvf syslinux-6.03.tar.gz
+# cp syslinux-6.03/efi64/efi/syslinux.efi /var/lib/tftpboot/efi/
+# cp syslinux-6.03/efi64/com32/menu/vesamenu.c32 /var/lib/tftpboot/efi/
+# cp syslinux-6.03/efi64/com32/elflink/ldlinux/ldlinux.e64 /var/lib/tftpboot/efi/
+# cp syslinux-6.03/efi64/com32/libutil/libutil.c32 /var/lib/tftpboot/efi/
+# cp syslinux-6.03/efi64/com32/lib/libcom32.c32 /var/lib/tftpboot/efi/
+
+# wget https://www.dropbox.com/s/2yhhqk9e09382tf/SVK-Wall.png -O /var/lib/tftpboot/efi/svk.png
+
+# cp /var/lib/tftpboot/pxelinux.cfg/default /var/lib/tftpboot/efi/pxelinux.cfg/
+
+# vi /var/lib/tftpboot/efi/pxelinux.cfg/default 
+DEFAULT vesamenu.c32
+MENU BACKGROUND svk.png
+MENU COLOR BORDER 0 #ffffffff #00000000 std
+MENU COLOR TITLE 0 #ffffffff #00000000 std
+MENU COLOR SEL 0 #ffffffff #ff000000 std
+MENU TITLE UEFI-PXE-Server-SVK-CentOS6
+PROMPT 0
+TIMEOUT 600
+ONTIMEOUT local
+UI vesamenu.c32
+#
+
+
+--->Note:----Do below step only after "ADD-OS-Images-To-PXE" 
+
+# cp -ar /var/lib/tftpboot/images/* /var/lib/tftpboot/efi/images/
+
+========================================================================
+========================================================================
+ADD-OS-Images-To-PXE
+========================================================================
+========================================================================
+
+1.GParted
+-----------------
+# mkdir /var/lib/tftpboot/images/gparted
+
+# mount -o loop -t iso9660 /ISO/gparted-live-0.22.0-2-amd64.iso /media
+# cp -a /media/live/. /var/lib/tftpboot/images/gparted
+# umount /media
+
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+....
+#######GParted-0.22##########
+LABEL GParted Live
+kernel images/gparted/vmlinuz
+append initrd=images/gparted/initrd.img boot=live union=overlay username=user config components quiet noswap noeject vga=788 fetch=tftp://192.168.1.8/images/gparted/filesystem.squashfs
+#
+
+2.ClonZilla
+-----------------
+
+# mkdir /var/lib/tftpboot/images/clonezilla
+
+# mount -o loop -t iso9660 /ISO/clonezilla-live-2.4.2-10-amd64.iso /media
+# cp -a /media/live/. /var/lib/tftpboot/images/clonezilla
+# umount /media
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+.....
+#######CloneZilla-2.4##########
+LABEL Clonezilla-2.4
+kernel images/clonezilla/vmlinuz
+append initrd=images/clonezilla/initrd.img boot=live union=overlay username=user config components quiet noswap edd=on nomodeset nodmraid noeject locales= keyboard-layouts= ocs_live_run="ocs-live-general" ocs_live_extra_param="" ocs_live_batch=no vga=788 ip=  nosplash i915.blacklist=yes radeonhd.blacklist=yes nouveau.blacklist=yes vmwgfx.enable_fbdev=1 fetch=tftp://192.168.1.8/images/clonezilla/filesystem.squashfs
+........
+
+3.Windows-7-PE
+--------------------------------
+
+# mkdir -p /var/lib/tftpboot/images/win7pe
+
+# scp -r ubuntu@200.0.0.10:/ISO/Win7/Win7PE-USB3.iso /var/lib/tftpboot/images/win7pe
+# chmod -R 777 /var/lib/tftpboot/images/win7pe
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+...
+#######Win7-PE####################
+LABEL Win7-PE
+KERNEL memdisk
+APPEND iso initrd=images/win7pe/Win7PE-USB3.iso raw
+#
+
+
+4.CentOS-Minimal
+--------------------------------
+
+# mkdir /var/lib/tftpboot/images/centos6
+# mkdir /FTP/centos6
+
+# mount -o loop -t iso9660 /ISO/centos6.iso /media
+# cp -a /media/. /FTP/centos6
+# cp /FTP/centos6/images/pxeboot/initrd.img  /var/lib/tftpboot/images/centos6
+# cp /FTP/centos6/images/pxeboot/vmlinuz  /var/lib/tftpboot/images/centos6
+# umount /media
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+.....
+#######CentOS-6.5-Minimal#########
+LABEL CentOS-6.5-Minimal
+KERNEL images/centos6/vmlinuz
+APPEND vga=normal initrd=images/centos6/initrd.img ramdisk_size=32768 METHOD=ftp://192.168.1.8/centos6
+#
+
+6.Ubuntu 14.04
+--------------------------
+# mkdir  -p /var/lib/tftpboot/images/ubuntu-14.04/casper
+# mkdir /FTP/ubuntu-14.04
+
+# mount -o loop -t iso9660 /ISO/ubuntu-14.04-x64.iso /media
+# cp -a /media/.  /FTP/ubuntu-14.04
+# cp /FTP/ubuntu-14.04/casper/initrd.lz  /var/lib/tftpboot/images/ubuntu-14.04/casper
+# cp /FTP/ubuntu-14.04/casper/vmlinuz.efi  /var/lib/tftpboot/images/ubuntu-14.04/casper
+
+# vi /etc/exports
+/FTP/ubuntu-14.04 192.168.1.0/24(ro,sync)
+#
+
+# exportfs -a
+# exportfs
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+....
+#######UBUNTU#########
+LABEL Ubuntu 14.04-x64
+KERNEL images/ubuntu-14.04/casper/vmlinuz.efi
+APPEND vga=normal boot=casper netboot=nfs nfsroot=192.168.1.8:/FTP/ubuntu-14.04/ initrd=images/ubuntu-14.04/casper/initrd.lz ramdisk_size=32768
+#
+
+7.CentOS-7-Server
+-----------------------------------------
+# mkdir /var/lib/tftpboot/images/CentOS7-Server
+# mkdir /FTP/CentOS7-Server
+
+# mount -t iso9660 -o loop /ISO/CentOS-7.0-1406-x86_64-Minimal.iso /media
+# cp -a /media/.  /FTP/CentOS7-Server
+
+
+# cp /FTP/CentOS7-Server/images/pxeboot/initrd.img /var/lib/tftpboot/images/CentOS7-Server
+# cp /FTP/CentOS7-Server/images/pxeboot/upgrade.img /var/lib/tftpboot/images/CentOS7-Server
+# cp /FTP/CentOS7-Server/images/pxeboot/vmlinuz /var/lib/tftpboot/images/CentOS7-Server
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+....
+#######CentOS-7-Minimal########
+LABEL CentOS-7-Server
+KERNEL images/CentOS7-Server/vmlinuz
+APPEND initrd=images/CentOS7-Server/initrd.img inst.repo=ftp://192.168.1.8/CentOS7-Server
+#
+
+8.CentOS-7-Desk-DVD
+-----------------------------------------
+# mkdir /var/lib/tftpboot/images/CentOS7-Desktop
+# mkdir /FTP/CentOS7-Desktop
+
+# mount -t iso9660 -o loop /ISO/CentOS-7-DVD.iso /media
+# cp -a /media/.  /FTP/CentOS7-Desktop
+
+# vi /etc/exports
+/FTP/CentOS7-Desktop 192.168.1.0/24(ro,sync)
+#
+
+# exportfs -a
+# exportfs
+
+
+# cp /FTP/CentOS7-Desktop/images/pxeboot/initrd.img /var/lib/tftpboot/images/CentOS7-Desktop
+# cp /FTP/CentOS7-Desktop/images/pxeboot/upgrade.img /var/lib/tftpboot/images/CentOS7-Desktop
+# cp /FTP/CentOS7-Desktop/images/pxeboot/vmlinuz /var/lib/tftpboot/images/CentOS7-Desktop
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+....
+#######CentOS-7-Full-DVD########
+LABEL CentOS-7-Desktop
+KERNEL images/CentOS7-Desktop/vmlinuz
+APPEND initrd=images/CentOS7-Desktop/initrd.img inst.repo=nfs:192.168.1.8:/FTP/CentOS7-Desktop
+#
+
+9. Ubuntu 16.04
+-----------------------------------------
+
+# mkdir  -p /var/lib/tftpboot/images/ubuntu-16.04/casper
+# mkdir /FTP/ubuntu-16.04
+
+# mount -o loop -t iso9660 /ISO/ubuntu-16.04-x64.iso /media
+# cp -a /media/.  /FTP/ubuntu-16.04
+# cp /FTP/ubuntu-16.04/casper/initrd.lz  /var/lib/tftpboot/images/ubuntu-16.04/casper
+# cp /FTP/ubuntu-16.04/casper/vmlinuz.efi  /var/lib/tftpboot/images/ubuntu-16.04/casper
+
+# vi /etc/exports
+/FTP/ubuntu-16.04 192.168.1.0/24(ro,sync)
+#
+
+# exportfs -a
+# exportfs
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+....
+#######UBUNTU16-04#########
+LABEL Ubuntu 16.04-x64
+#MENU PASSWD
+KERNEL images/ubuntu-16.04/casper/vmlinuz.efi
+APPEND vga=normal boot=casper netboot=nfs nfsroot=192.168.1.8:/FTP/ubuntu-16.04/ initrd=images/ubuntu-16.04/casper/initrd.lz ramdisk_size=32768
+#
+
+========================================================================
+========================================================================
+--Note: While Using NFS installation speed is much better than FTP 
+========================================================================
+========================================================================
+
+# service rpcbind start
+# service nfs start
+# service vsftpd start
+# service xinetd start
+# service dhcpd start
+
+
+# chkconfig rpcbind on
+# chkconfig nfs on
+# chkconfig vsftpd on
+# chkconfig xinetd on
+# chkconfig dhcpd on
+
+
+# cat /root/pxe-ser.sh
+for i in rpcbind nfs vsftpd xinetd dhcpd 
+do
+service $i $1
+done
+# 
+
+========================================================================
+========================================================================
+For-Password-Protect-Menu
+========================================================================
+========================================================================
+
+
+# openssl passwd -1 -salt sXiKzkus <password-for-pxe>
+$1$sXiKzkus$LnKYe3OlM5I2xxKIUgdNC1
+#
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+DEFAULT vesamenu.c32
+MENU BACKGROUND svk-pxebg.png
+MENU COLOR BORDER 0 #ffffffff #00000000 std
+MENU COLOR TITLE 0 #ffffffff #00000000 std
+MENU COLOR SEL 0 #ffffffff #ff000000 std
+MENU TITLE PXE-Server-SVK-CentOS6
+PROMPT 0
+TIMEOUT 600
+ONTIMEOUT local
+MENU MASTER PASSWD $1$sXiKzkus$LnKYe3OlM5I2xxKIUgdNC1
+#######GParted-0.22##########
+
+LABEL GParted Live
+MENU PASSWD
+kernel images/gparted/vmlinuz
+append initrd=images/gparted/initrd.img boot=live union=overlay username=user config components quiet noswap noeject vga=788 fetch=tftp://192.168.1.8/images/gparted/filesystem.squashfs
+#######CloneZilla-2.4##########
+LABEL Clonezilla-2.4
+MENU PASSWD
+kernel images/clonezilla/vmlinuz
+append initrd=images/clonezilla/initrd.img boot=live union=overlay username=user config components quiet noswap edd=on nomodeset nodmraid noeject locales= keyboard-layouts= ocs_live_run="ocs-live-general" ocs_live_extra_param="" ocs_live_batch=no vga=788 ip=  nosplash i915.blacklist=yes radeonhd.blacklist=yes nouveau.blacklist=yes vmwgfx.enable_fbdev=1 fetch=tftp://192.168.1.8/images/clonezilla/filesystem.squashfs
+#######UBUNTU14-04#########
+LABEL Ubuntu 14.04-x64
+MENU PASSWD
+KERNEL images/ubuntu-14.04/casper/vmlinuz.efi
+APPEND vga=normal boot=casper netboot=nfs nfsroot=192.168.1.8:/FTP/ubuntu-14.04/ initrd=images/ubuntu-14.04/casper/initrd.lz ramdisk_size=32768
+
+#######Win7-PE####################
+LABEL Win-PE
+MENU PASSWD
+KERNEL memdisk
+APPEND iso initrd=images/win7pe/Win7PE-USB3.iso raw
+
+#
+
+
+
+
+
+
+
+
+=================================================================
+Example-EFI---"pxelinux.cfg/default"
+=================================================================
+
+# ls /var/lib/tftpboot/efi/
+images       libcom32.c32  pxelinux.cfg  syslinux.efi
+ldlinux.e64  libutil.c32   svk.png       vesamenu.c32
+# 
+
+# cat /var/lib/tftpboot/efi/pxelinux.cfg/default 
+DEFAULT vesamenu.c32
+MENU BACKGROUND svk.png
+MENU COLOR BORDER 0 #ffffffff #00000000 std
+MENU COLOR TITLE 0 #ffffffff #00000000 std
+MENU COLOR SEL 0 #ffffffff #ff000000 std
+MENU TITLE UEFI-PXE-Server-SVK-CentOS6
+PROMPT 0
+TIMEOUT 600
+ONTIMEOUT local
+UI vesamenu.c32
+MENU MASTER PASSWD $1$sXiKzkus$LnKYe3OlM5I2xxKIUgdNC1
+#######GParted-0.22##########
+LABEL GParted Live
+MENU PASSWD
+kernel images/gparted/vmlinuz
+append initrd=images/gparted/initrd.img boot=live union=overlay username=user config components quiet noswap noeject vga=788 fetch=tftp://192.168.1.8/images/gparted/filesystem.squashfs
+#######CloneZilla-2.4##########
+LABEL Clonezilla-2.4
+MENU PASSWD
+kernel images/clonezilla/vmlinuz
+append initrd=images/clonezilla/initrd.img boot=live union=overlay username=user config components quiet noswap edd=on nomodeset nodmraid noeject locales= keyboard-layouts= ocs_live_run="ocs-live-general" ocs_live_extra_param="" ocs_live_batch=no vga=788 ip=  nosplash i915.blacklist=yes radeonhd.blacklist=yes nouveau.blacklist=yes vmwgfx.enable_fbdev=1 fetch=tftp://192.168.1.8/images/clonezilla/filesystem.squashfs
+#######UBUNTU14-04#########
+LABEL Ubuntu 14.04-x64
+MENU PASSWD
+KERNEL images/ubuntu-14.04/casper/vmlinuz.efi
+APPEND vga=normal boot=casper netboot=nfs nfsroot=192.168.1.8:/vsftpd/backup/ubuntu-14.04/ initrd=images/ubuntu-14.04/casper/initrd.lz ramdisk_size=32768
+
+#######UBUNTU16-04#########
+LABEL Ubuntu 16.04-x64
+#MENU PASSWD
+KERNEL images/ubuntu-16.04/casper/vmlinuz.efi
+APPEND vga=normal boot=casper netboot=nfs nfsroot=192.168.1.8:/vsftpd/backup/ubuntu-16.04/ initrd=images/ubuntu-16.04/casper/initrd.lz ramdisk_size=32768
+#######Win7-PE####################
+LABEL Win-PE
+MENU PASSWD
+KERNEL memdisk
+APPEND iso initrd=images/win7pe/Win7PE-USB3.iso raw
+# 
+
+=================================================================
+Example-MBR---"pxelinux.cfg/default"
+=================================================================
+
+# ls /var/lib/tftpboot/
+efi  images  memdisk  pxelinux.0  pxelinux.cfg  
+svk-pxebg.png  vesamenu.c32
+# 
+
+# cat /var/lib/tftpboot/pxelinux.cfg/default 
+DEFAULT vesamenu.c32
+MENU BACKGROUND svk-pxebg.png
+MENU COLOR BORDER 0 #ffffffff #00000000 std
+MENU COLOR TITLE 0 #ffffffff #00000000 std
+MENU COLOR SEL 0 #ffffffff #ff000000 std
+MENU TITLE PXE-Server-SVK-CentOS6
+PROMPT 0
+TIMEOUT 600
+ONTIMEOUT local
+MENU MASTER PASSWD $1$sXiKzkus$LnKYe3OlM5I2xxKIUgdNC1
+#######GParted-0.22##########
+LABEL GParted Live
+MENU PASSWD
+kernel images/gparted/vmlinuz
+append initrd=images/gparted/initrd.img boot=live union=overlay username=user config components quiet noswap noeject vga=788 fetch=tftp://192.168.1.8/images/gparted/filesystem.squashfs
+#######CloneZilla-2.4##########
+LABEL Clonezilla-2.4
+MENU PASSWD
+kernel images/clonezilla/vmlinuz
+append initrd=images/clonezilla/initrd.img boot=live union=overlay username=user config components quiet noswap edd=on nomodeset nodmraid noeject locales= keyboard-layouts= ocs_live_run="ocs-live-general" ocs_live_extra_param="" ocs_live_batch=no vga=788 ip=  nosplash i915.blacklist=yes radeonhd.blacklist=yes nouveau.blacklist=yes vmwgfx.enable_fbdev=1 fetch=tftp://192.168.1.8/images/clonezilla/filesystem.squashfs
+#######UBUNTU14-04#########
+LABEL Ubuntu 14.04-x64
+MENU PASSWD
+KERNEL images/ubuntu-14.04/casper/vmlinuz.efi
+APPEND vga=normal boot=casper netboot=nfs nfsroot=192.168.1.8:/vsftpd/backup/ubuntu-14.04/ initrd=images/ubuntu-14.04/casper/initrd.lz ramdisk_size=32768
+
+#######UBUNTU16-04#########
+LABEL Ubuntu 16.04-x64
+MENU PASSWD
+KERNEL images/ubuntu-16.04/casper/vmlinuz.efi
+APPEND vga=normal boot=casper netboot=nfs nfsroot=192.168.1.8:/vsftpd/backup/ubuntu-16.04/ initrd=images/ubuntu-16.04/casper/initrd.lz ramdisk_size=32768
+#######Win7-PE####################
+LABEL Win-PE
+MENU PASSWD
+KERNEL memdisk
+APPEND iso initrd=images/win7pe/Win7PE-USB3.iso raw
+# 
+

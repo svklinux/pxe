@@ -1,0 +1,22 @@
+Add Windows-7-PE ISO to PXE-Boot-Menu
+===================================
+
+# cd /var/lib/tftpboot
+# cp /usr/share/syslinux/memdisk  .
+
+# mkdir -p /var/lib/tftpboot/images/win7
+
+# scp -r ubuntu@200.0.0.10:/ISO/Win7/Win7-PE.iso /var/lib/tftpboot/images/win7
+# chmod -R 777 /var/lib/tftpboot/images/win7
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+...
+#######Win7-PE####################
+LABEL Win7-PE
+KERNEL memdisk
+APPEND iso initrd=images/win7/Win7-PE.iso raw
+#
+
+
+Boot Machine using Win7PE and Install windows 7 using n/w shared ISO
+( Mount ISO as CDROM option available inside winpe,from the mounted iso run setup.exe forwin7 Installation ) 

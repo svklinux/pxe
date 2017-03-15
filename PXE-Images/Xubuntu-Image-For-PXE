@@ -1,0 +1,79 @@
+
+================================
+	1.Xubuntu-14.04.03-Desktop
+================================
+
+# mount /dev/cdrom /media
+
+# mkdir /FTP/Xubuntu-14.04-Desk
+# cp -ar /media/* /FTP/Xubuntu-14.04-Desk
+# cp -ar /media/.disk /FTP/Xubuntu-14.04-Desk
+
+# umount /media 
+
+# ls -lap /FTP/Xubuntu-14.04-Desk
+casper/  install/   md5sum.txt  preseed/            ubuntu
+.disk/   isolinux/  media/      README.diskdefines
+#
+
+
+# mkdir -p /var/lib/tftpboot/images/Xubuntu-14.04-Desk/casper
+# cp -ar /FTP/Xubuntu-14.04-Desk/casper/initrd.gz /var/lib/tftpboot/images/Xubuntu-14.04-Desk/casper
+# cp -ar /FTP/Xubuntu-14.04-Desk/casper/vmlinuz /var/lib/tftpboot/images/Xubuntu-14.04-Desk/casper
+
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+......
+#######XUBUNTU-14.04.03-Desktop####################
+LABEL XUbuntu 14.04.03-x64 Desktop
+KERNEL images/Xubuntu-14.04-Desk/casper/vmlinuz
+APPEND vga=normal boot=casper only-ubiquity netboot=nfs nfsroot=100.0.0.11:/FTP/Xubuntu-14.04-Desk/ initrd=images/Xubuntu-14.04-Desk/casper/initrd.gz ramdisk_size=32768
+#
+
+# vi /etc/exports
+...
+/FTP/Xubuntu-14.04-Desk 100.0.0.0/24(ro,sync)
+#
+
+# exportfs -a
+
+
+================================
+	2.Xubuntu-14.04.03-Desktop-LIGS
+================================
+
+# mount /dev/cdrom /media
+
+# mkdir /FTP/LiGS-Desk
+# cp -ar /media /FTP/LiGS-Desk
+# cp -ar /media/.disk /FTP/LiGS-Desk
+
+# umount /media 
+
+# ls -lap /FTP/LiGS-Desk
+casper/  install/   md5sum.txt  README.diskdefines
+.disk/   isolinux/  preseed/    ubuntu
+#
+
+
+# mkdir -p /var/lib/tftpboot/images/LiGS-Desk/casper
+# cp -ar /FTP/LiGS-Desk/casper/initrd.gz /var/lib/tftpboot/images/LiGS-Desk/casper
+# cp -ar /FTP/LiGS-Desk/casper/vmlinuz /var/lib/tftpboot/images/LiGS-Desk/casper
+
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+......
+#######XUBUNTU-14.04.03-Desktop-LiGS####################
+LABEL XUbuntu 14.04.03-x64 Desktop-LiGS
+KERNEL images/LiGS-Desk/casper/vmlinuz
+APPEND vga=normal boot=casper only-ubiquity netboot=nfs nfsroot=100.0.0.11:/FTP/LiGS-Desk/ initrd=images/LiGS-Desk/casper/initrd.gz ramdisk_size=32768
+#
+
+# vi /etc/exports
+...
+/FTP/LiGS-Desk 222.0.0.0/24(ro,sync)
+#
+
+# exportfs -a
+
+

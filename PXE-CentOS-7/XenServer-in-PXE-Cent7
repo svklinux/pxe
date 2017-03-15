@@ -1,0 +1,180 @@
+XenServer-on-PXE-Server-CentOS-7	(8-Jan-2016)
+==========================================
+
+# cat /etc/hostname 
+PXE-CenT-7
+#
+
+# systemctl disable firewalld
+
+# cat /etc/sysconfig/selinux
+...
+SELINUX=disabled
+...
+#
+
+# vi /etc/sysconfig/network-scripts/ifcfg-enp0s3
+TYPE=Ethernet
+BOOTPROTO=none
+DEFROUTE=yes
+IPV4_FAILURE_FATAL=no
+IPV6INIT=no
+NAME=enp0s3
+ONBOOT=yes
+HWADDR=xxxxxxxxxxxxx
+IPADDR0=222.0.0.25
+PREFIX0=24
+GATEWAY0=222.0.0.10
+DNS1=192.168.1.1
+DOMAIN=8.8.8.8
+#
+
+# yum install openssh-server
+
+# systemctl status sshd
+# systemctl start sshd
+# systemctl enable sshd
+
+# reboot
+
+
+		DHCP-Server
+--------------------------------------------------------
+
+# yum install dhcp
+
+# vi /etc/dhcp/dhcpd.conf 
+option routers 222.0.0.10;
+option domain-name "testsvk.org";
+option domain-name-servers 192.168.1.1;
+option subnet-mask 255.255.255.0;
+subnet 222.0.0.0 netmask 255.255.255.0 {
+range 222.0.0.150 222.0.0.200;
+allow unknown-clients;
+allow booting ;
+allow bootp ;
+next-server 222.0.0.25;
+filename "pxelinux.0";
+}
+# 
+
+# systemctl enable dhcpd
+
+		FTP-Server
+-------------------------------------------------------
+
+# yum install vsftpd
+
+# vi /etc/vsftpd/vsftpd.conf
+...
+anonymous_enable=YES
+anon_root=/FTP
+...
+
+# mkdir /FTP
+
+			NFS-Server
+--------------------------------------------------------
+
+# yum install nfs-utils
+
+#  systemctl status rpcbind
+#  systemctl status nfs-server
+
+#  systemctl enable rpcbind
+#  systemctl enable nfs-server
+
+			TFTP-Server
+-----------------------------------------------------------
+
+# yum install tftp-server syslinux wget
+
+# vi /etc/xinetd.d/tftp
+service tftp
+{
+	socket_type		= dgram
+	protocol		= udp
+	wait			= yes
+	user			= root
+	server			= /usr/sbin/in.tftpd
+	server_args		= -s /var/lib/tftpboot
+	disable			= no
+	per_source		= 11
+	cps			= 100 2
+	flags			= IPv4
+}
+#
+
+# mkdir -p /var/lib/tftpboot/pxelinux.cfg
+# mkdir /var/lib/tftpboot/images
+# chmod -R 777 /var/lib/tftpboot/
+
+# cp /usr/share/syslinux/pxelinux.0 /var/lib/tftpboot/
+# cp /usr/share/syslinux/vesamenu.c32 /var/lib/tftpboot/
+# wget http://geekface.ca/downloads/centos7pxebg.png  --->640x480 Resolution
+# cp centos7pxebg.png /var/lib/tftpboot/
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default
+DEFAULT vesamenu.c32
+MENU BACKGROUND centos7pxebg.png
+MENU COLOR BORDER 0 #ffffffff #00000000 std
+MENU COLOR TITLE 0 #ffffffff #00000000 std
+MENU COLOR SEL 0 #ffffffff #ff000000 std
+MENU TITLE PXE-Server-Multi-OS
+PROMPT 0
+TIMEOUT 600
+#
+
+Add-XenServer-to-PXE-Boot
+========================================
+
+# mkdir /var/www/html/xenserver6-5
+
+# mount /dev/cdrom /mnt
+# cd /mnt
+
+# cp -r packages*  /var/www/html/xenserver6-5
+# cp XS-REPOSITORY-LIST /var/www/html/xenserver6-5
+
+# mkdir /var/lib/tftpboot/images/xenserver6-5
+
+# cp -a /mnt/boot/* /var/lib/tftpboot/images/xenserver6-5
+# cp /mnt/install.img /var/lib/tftpboot/images/xenserver6-5
+# cp /mnt/boot/pxelinux/mboot.c32 /var/lib/tftpboot/images/xenserver6-5
+
+# vi /var/lib/tftpboot/pxelinux.cfg/default 
+DEFAULT vesamenu.c32
+#MENU BACKGROUND centos7pxebg.png
+MENU BACKGROUND SVK-Wall.png
+MENU COLOR BORDER 0 #ffffffff #00000000 std
+MENU COLOR TITLE 0 #ffffffff #00000000 std
+MENU COLOR SEL 0 #ffffffff #ff000000 std
+MENU TITLE Cent-7-PXE Boot Menu
+PROMPT 0
+TIMEOUT 300
+#ONTIMEOUT local
+....
+#######XenServer-6.5####################
+LABEL XenServer-6.5-SVK
+kernel images/xenserver6-5/mboot.c32
+append images/xenserver6-5/xen.gz dom0_max_vcpus=2 dom0_mem=752M com1=115200,8n1 console=com1,vga --- images/xenserver6-5/vmlinuz xencons=hvc console=hvc0 console=tty0 answerfile=http://222.0.0.25/xenserver6-5/answerfile install --- images/xenserver6-5/install.img
+#
+
+
+
+# vi /var/www/html/xenserver6-5/answerfile
+<?xml version="1.0"?>
+<installation srtype="ext">
+<primary-disk>sda</primary-disk>
+<keymap>us</keymap>
+<root-password>root123</root-password>                      
+<source type="url">http://222.0.0.25/xenserver6-5/</source>
+<ntp-server>222.0.0.25</ntp-server>        
+<admin-interface name="eth0" proto="dhcp" />
+<timezone>Asia/Kolkata</timezone>
+</installation>
+#
+
+# systemctl enable httpd
+# systemctl start httpd
+
